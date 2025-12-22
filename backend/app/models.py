@@ -52,7 +52,8 @@ class Session(Base):
                                      foreign_keys="Message.session_id")
     group_messages = relationship("Message", back_populates="session",
                                  primaryjoin="and_(Session.id==Message.session_id, Message.chat_type=='group')",
-                                 foreign_keys="Message.session_id")
+                                 foreign_keys="Message.session_id",
+                                 overlaps="yandexgpt_messages")
 
 class StudentSession(Base):
     __tablename__ = "student_sessions"
@@ -76,7 +77,7 @@ class Message(Base):
     status = Column(SQLEnum(MessageStatus), default=MessageStatus.PENDING)
     is_from_yandexgpt = Column(Boolean, default=False)
     yandexgpt_response = Column(Text)
-    metadata = Column(JSON)
+    message_metadata = Column(JSON)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     session = relationship("Session")

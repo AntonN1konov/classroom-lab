@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -18,14 +18,34 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+def _truncate_password(password: str) -> bytes:
+    """Обрезает пароль до 72 байт с учетом UTF-8, возвращает bytes"""
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) <= 72:
+        return password_bytes
+    # Обрезаем до 72 байт
+    truncated = password_bytes[:72]
+    # Убираем неполные символы в конце (продолжение UTF-8 символа)
+    while truncated and truncated[-1] & 0x80 and not (truncated[-1] & 0x40):
+        truncated = truncated[:-1]
+    return truncated
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # bcrypt ограничивает пароль 72 байтами, обрезаем автоматически
+    password_bytes = _truncate_password(password)
+    # Генерируем соль и хешируем пароль
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    # Возвращаем как строку для хранения в БД
+    return hashed.decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # При проверке тоже обрезаем до 72 байт для совместимости
+    password_bytes = _truncate_password(plain_password)
+    hashed_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password_bytes, hashed_bytes)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
