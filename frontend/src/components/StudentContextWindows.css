@@ -1,0 +1,117 @@
+.student-context-windows {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+}
+
+.context-windows-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 2px solid #f0f0f0;
+  background: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+}
+
+.context-windows-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.context-windows-content {
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.pending-messages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pending-message-card {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.message-info {
+  flex: 1;
+}
+
+.student-name {
+  font-weight: 600;
+  color: #667eea;
+  margin-bottom: 0.5rem;
+}
+
+.message-text {
+  color: #333;
+  line-height: 1.5;
+}
+
+.message-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.approve-btn {
+  padding: 0.5rem 1rem;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.approve-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.approve-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.reject-btn {
+  padding: 0.5rem 1rem;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.reject-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.reject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.no-pending-messages {
+  text-align: center;
+  color: #999;
+  padding: 2rem;
+  font-style: italic;
+}
+
+.loading {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+}
+
