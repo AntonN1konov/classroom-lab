@@ -169,6 +169,11 @@ YandexGPT-office-laboratory/
 - Контроль доступа на уровне API
 - Валидация всех входных данных
 
-## Поддержка
+## Авторы
 
-Для вопросов и предложений обращайтесь к разработчику.
+Учебный проект. Исходная версия — [Diyaryulchub/YandexGPT-office-laboratory](https://github.com/Diyaryulchub/YandexGPT-office-laboratory).
+
+Изменения в этой версии ([@AntonN1konov](https://github.com/AntonN1konov)):
+- управление составом сессии в кабинете преподавателя: список студентов, поиск и добавление, удаление из сессии (`SessionStudents`);
+- проверка роли на backend: в сессию можно добавить только пользователя с ролью «студент»;
+- шаблон переменных окружения `backend/.env.example`.
