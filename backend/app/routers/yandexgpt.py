@@ -6,13 +6,12 @@ from app.database import get_db
 from app.models import Message, Session, User, StudentSession, ChatType, MessageStatus, TokenUsage
 from app.schemas import YandexGPTRequest, YandexGPTResponse, MessageResponse
 from app.auth import get_current_active_user, get_current_teacher
-from app.services.yandexgpt_service import YandexGPTService
+from app.services import llm
 
 router = APIRouter()
-yandexgpt_service = YandexGPTService()
 
 @router.post("/send", response_model=YandexGPTResponse)
-async def send_to_yandexgpt(
+def send_to_yandexgpt(
     request: YandexGPTRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -26,14 +25,13 @@ async def send_to_yandexgpt(
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
     
-    # Для студентов проверяем, что они имеют доступ
-    if current_user.role.value == "student":
-        student_session = db.query(StudentSession).filter(
-            StudentSession.session_id == request.session_id,
-            StudentSession.student_id == current_user.id
-        ).first()
-        if not student_session:
-            raise HTTPException(status_code=403, detail="Нет доступа к этой сессии")
+    # Напрямую (уровень 1) пишет только преподаватель этой сессии.
+    # Студенты отправляют промты через уровень 2 — на одобрение.
+    if current_user.role.value != "teacher" or session.teacher_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Напрямую в модель пишет только преподаватель сессии. Отправьте промт на одобрение.",
+        )
     
     # Получение контекста из предыдущих сообщений
     previous_messages = db.query(Message).filter(
@@ -54,10 +52,7 @@ async def send_to_yandexgpt(
     
     # Отправка запроса в YandexGPT
     try:
-        result = yandexgpt_service.send_request(
-            prompt=request.prompt,
-            context=context
-        )
+        result = llm.send(prompt=request.prompt, context=context)
         
         # Сохранение сообщения пользователя
         user_message = Message(
@@ -100,11 +95,15 @@ async def send_to_yandexgpt(
             tokens_used=result.get("tokens_used")
         )
         
+    except llm.LLMError as e:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при обращении к YandexGPT: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка при обращении к модели: {e}")
 
 @router.post("/approve/{message_id}")
-async def approve_student_message(
+def approve_student_message(
     message_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_teacher)
@@ -143,10 +142,7 @@ async def approve_student_message(
     
     # Отправка в YandexGPT
     try:
-        result = yandexgpt_service.send_request(
-            prompt=message.content,
-            context=context
-        )
+        result = llm.send(prompt=message.content, context=context)
         
         # Обновление статуса сообщения
         message.status = MessageStatus.APPROVED
@@ -177,11 +173,15 @@ async def approve_student_message(
         
         author = db.query(User).filter(User.id == message.author_id).first()
         return {
-            "message": "Сообщение одобрено и отправлено в YandexGPT",
+            "message": "Сообщение одобрено и отправлено модели",
             "response": result["response"],
             "tokens_used": result.get("tokens_used")
         }
         
+    except llm.LLMError as e:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при обращении к YandexGPT: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка при обращении к модели: {e}")
 

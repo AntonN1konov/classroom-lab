@@ -55,6 +55,11 @@ function StudentContextWindows({ sessionId }) {
       <div className="context-windows-header">
         <h3>КО студентов (Уровень 2)</h3>
       </div>
+      {approveMutation.isError && (
+        <div className="chat-error">
+          {approveMutation.error?.response?.data?.detail || 'Не удалось отправить промт модели'}
+        </div>
+      )}
       <div className="context-windows-content">
         {pendingMessages && pendingMessages.length > 0 ? (
           <div className="pending-messages-list">
@@ -70,7 +75,7 @@ function StudentContextWindows({ sessionId }) {
                     disabled={approveMutation.isPending}
                     className="approve-btn"
                   >
-                    Отправить в YandexGPT
+                    {approveMutation.isPending ? 'Отправка...' : 'Одобрить и отправить'}
                   </button>
                   <button
                     onClick={() => rejectMutation.mutate(msg.id)}

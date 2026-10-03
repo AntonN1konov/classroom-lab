@@ -46,12 +46,10 @@ function Login() {
       <div className="login-card">
         <h1>YandexGPT Office Laboratory</h1>
         <h2>Вход в систему</h2>
-        {setup && !setup.configured && (
+        {setup && setup.provider === 'demo' && setup.editable && (
           <div className="setup-banner">
-            YandexGPT ещё не подключён.{' '}
-            {setup.editable
-              ? <Link to="/setup">Настроить</Link>
-              : 'Попросите преподавателя завершить настройку.'}
+            Работает демо-режим: модель не подключена.{' '}
+            <Link to="/setup">Выбрать модель</Link>
           </div>
         )}
         <form onSubmit={handleSubmit}>

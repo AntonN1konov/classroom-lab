@@ -1,24 +1,29 @@
 """
-Первичная настройка автономной (desktop) сборки: ключ YandexGPT и Folder ID.
+Настройки подключения языковой модели (установленная версия).
 
-Изменять настройки можно только с того компьютера, где запущен сервер
-(запросы с 127.0.0.1 / ::1), чтобы студенты в локальной сети не могли
-подменить ключ.
+Читать статус может любой. Менять настройки и проверять подключение — только
+с компьютера, где запущен сервер (запросы с 127.0.0.1 / ::1), чтобы студенты
+в локальной сети не могли подменить ключ или модель.
 """
 import os
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from app.services import llm
 
 router = APIRouter()
 
 LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
-class SetupRequest(BaseModel):
-    folder_id: str = Field(min_length=1)
-    api_key: str = Field(min_length=1)
+class SettingsRequest(BaseModel):
+    provider: Literal["demo", "ollama", "yandexgpt"]
+    folder_id: Optional[str] = None
+    api_key: Optional[str] = None  # пусто — оставить сохранённый ключ
+    ollama_url: Optional[str] = None
+    ollama_model: Optional[str] = None
 
 
 def _config_file() -> Optional[str]:
@@ -27,6 +32,13 @@ def _config_file() -> Optional[str]:
 
 def _is_local(request: Request) -> bool:
     return request.client is not None and request.client.host in LOCAL_HOSTS
+
+
+def _require_local(request: Request) -> None:
+    if not _config_file():
+        raise HTTPException(status_code=404, detail="Настройка через интерфейс доступна только в установленной версии")
+    if not _is_local(request):
+        raise HTTPException(status_code=403, detail="Настройки можно менять только на компьютере, где запущен сервер")
 
 
 def _save_env(path: str, values: dict) -> None:
@@ -47,27 +59,67 @@ def _save_env(path: str, values: dict) -> None:
         f.write("\n".join(result) + "\n")
 
 
+def _resolve(data: SettingsRequest) -> dict:
+    """Значения формы; пустые поля заменяются сохранёнными."""
+    values = {"LLM_PROVIDER": data.provider}
+    if data.provider == "yandexgpt":
+        folder_id = (data.folder_id or os.getenv("YANDEX_CLOUD_FOLDER_ID") or "").strip()
+        api_key = (data.api_key or os.getenv("YANDEXGPT_API_KEY") or "").strip()
+        if not folder_id or not api_key:
+            raise HTTPException(status_code=400, detail="Для YandexGPT нужны Folder ID и API-ключ")
+        values.update(YANDEX_CLOUD_FOLDER_ID=folder_id, YANDEXGPT_API_KEY=api_key)
+    elif data.provider == "ollama":
+        values.update(
+            OLLAMA_URL=(data.ollama_url or llm.DEFAULT_OLLAMA_URL).strip().rstrip("/"),
+            OLLAMA_MODEL=(data.ollama_model or llm.DEFAULT_OLLAMA_MODEL).strip(),
+        )
+    return values
+
+
 @router.get("/status")
 async def setup_status(request: Request):
-    return {
-        "configured": bool(os.getenv("YANDEXGPT_API_KEY") and os.getenv("YANDEX_CLOUD_FOLDER_ID")),
-        "editable": bool(_config_file()) and _is_local(request),
-        "folder_id": os.getenv("YANDEX_CLOUD_FOLDER_ID") if _is_local(request) else None,
+    local = _is_local(request)
+    provider = llm.current_provider()
+    status = {
+        "provider": provider,
+        "label": llm.provider_label(provider),
+        "configured": provider != "demo",
+        "first_run": not os.getenv("LLM_PROVIDER") and provider == "demo",
+        "editable": bool(_config_file()) and local,
     }
+    if local:
+        status.update(
+            folder_id=os.getenv("YANDEX_CLOUD_FOLDER_ID") or "",
+            has_api_key=bool(os.getenv("YANDEXGPT_API_KEY")),
+            ollama_url=os.getenv("OLLAMA_URL") or llm.DEFAULT_OLLAMA_URL,
+            ollama_model=os.getenv("OLLAMA_MODEL") or llm.DEFAULT_OLLAMA_MODEL,
+        )
+    return status
+
+
+@router.post("/test")
+def test_connection(data: SettingsRequest, request: Request):
+    """Пробный запрос к модели с указанными (ещё не сохранёнными) настройками."""
+    _require_local(request)
+    values = _resolve(data)
+    try:
+        result = llm.send(
+            "Ответь одним коротким предложением: ты на связи?",
+            provider=data.provider,
+            folder_id=values.get("YANDEX_CLOUD_FOLDER_ID"),
+            api_key=values.get("YANDEXGPT_API_KEY"),
+            ollama_url=values.get("OLLAMA_URL"),
+            ollama_model=values.get("OLLAMA_MODEL"),
+        )
+    except llm.LLMError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"ok": True, "response": result["response"], "tokens_used": result["tokens_used"]}
 
 
 @router.post("/")
-async def save_setup(data: SetupRequest, request: Request):
-    path = _config_file()
-    if not path:
-        raise HTTPException(status_code=404, detail="Настройка через интерфейс доступна только в установленной версии")
-    if not _is_local(request):
-        raise HTTPException(status_code=403, detail="Настройки можно менять только на компьютере, где запущен сервер")
-
-    values = {
-        "YANDEX_CLOUD_FOLDER_ID": data.folder_id.strip(),
-        "YANDEXGPT_API_KEY": data.api_key.strip(),
-    }
-    _save_env(path, values)
+async def save_setup(data: SettingsRequest, request: Request):
+    _require_local(request)
+    values = _resolve(data)
+    _save_env(_config_file(), values)
     os.environ.update(values)
-    return {"configured": True}
+    return {"provider": data.provider, "label": llm.provider_label(data.provider)}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import './Layout.css'
 
@@ -27,6 +27,9 @@ function Layout({ children }) {
           <h1>YandexGPT Office Laboratory</h1>
           <div className="layout-header-user">
             <span>{user?.full_name} ({user?.role === 'teacher' ? 'Преподаватель' : 'Студент'})</span>
+            {user?.role === 'teacher' && (
+              <Link to="/setup" className="logout-btn settings-btn">Настройки ИИ</Link>
+            )}
             <button onClick={handleLogout} className="logout-btn">
               Выход
             </button>

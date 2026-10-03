@@ -128,3 +128,36 @@
   cursor: not-allowed;
 }
 
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.llm-badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+  white-space: nowrap;
+}
+
+.llm-badge.demo {
+  background: #fff3cd;
+  color: #7a5a00;
+}
+
+.chat-error {
+  margin: 0 1rem 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  word-break: break-word;
+}

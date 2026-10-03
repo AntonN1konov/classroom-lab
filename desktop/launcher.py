@@ -105,7 +105,8 @@ def open_browser_when_ready(port: int) -> None:
             break
         except Exception:
             time.sleep(0.5)
-    configured = bool(os.getenv("YANDEXGPT_API_KEY") and os.getenv("YANDEX_CLOUD_FOLDER_ID"))
+    # При первом запуске — выбор модели, дальше сразу вход
+    configured = bool(os.getenv("LLM_PROVIDER") or os.getenv("YANDEXGPT_API_KEY"))
     webbrowser.open(f"{base}/login" if configured else f"{base}/setup")
 
 

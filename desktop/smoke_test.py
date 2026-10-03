@@ -68,7 +68,8 @@ def main():
         status, page = request("GET", "/login")
         check(status == 200 and "<div id=\"root\">" in page, "фронтенд раздаётся (/login)")
         status, data = request("GET", "/api/setup/status")
-        check(status == 200 and data["configured"] is False and data["editable"] is True, "статус настройки")
+        check(status == 200 and data["provider"] == "demo" and data["first_run"] and data["editable"],
+              "первый запуск: демо-режим, настройки доступны")
 
         for user in (("teacher1", "teacher"), ("student1", "student")):
             status, _ = request("POST", "/api/auth/register", {
@@ -92,9 +93,35 @@ def main():
         _, full = request("GET", f"/api/sessions/{sid}", token=teacher)
         check(len(full["students"]) == 1, "состав сессии")
 
-        status, _ = request("POST", "/api/setup/", {"folder_id": "test-folder", "api_key": "test-key"})
-        check(status == 200, "сохранение настроек YandexGPT")
-        check(request("GET", "/api/setup/status")[1]["configured"] is True, "настройки применены без перезапуска")
+        # Демо-режим: преподаватель пишет напрямую (уровень 1)
+        status, answer = request("POST", "/api/yandexgpt/send", {"prompt": "Привет", "session_id": sid}, token=teacher)
+        check(status == 200 and "Демо-режим" in answer["response"], "ответ в демо-режиме")
+
+        # Студент не может писать в модель напрямую, только через одобрение (уровень 2)
+        stoken = s["access_token"]
+        status, _ = request("POST", "/api/yandexgpt/send", {"prompt": "x", "session_id": sid}, token=stoken)
+        check(status == 403, "студент не пишет в модель напрямую")
+        status, pending = request("POST", "/api/chats/messages",
+                                  {"content": "Вопрос студента", "chat_type": "yandexgpt", "session_id": sid}, token=stoken)
+        check(status == 200 and pending["status"] == "pending", "промт студента ждёт одобрения")
+        status, approved = request("POST", f"/api/yandexgpt/approve/{pending['id']}", {}, token=teacher)
+        check(status == 200 and "№2" in approved["response"], "одобрение промта, общий контекст сессии")
+
+        status, pdf = request("POST", "/api/export/session",
+                              {"session_id": sid, "format": "pdf", "include_context": True}, token=teacher)
+        check(status == 200 and str(pdf).startswith("%PDF"), "экспорт в PDF")
+
+        # Ошибки подключения должны быть понятными, а не «500»
+        status, err = request("POST", "/api/setup/test", {"provider": "ollama", "ollama_url": "http://127.0.0.1:9"})
+        check(status == 502 and "Ollama" in err, "понятная ошибка, если Ollama не запущена")
+        status, _ = request("POST", "/api/setup/", {"provider": "yandexgpt", "folder_id": "f"})
+        check(status == 400, "YandexGPT без ключа не сохраняется")
+
+        status, saved = request("POST", "/api/setup/", {"provider": "ollama", "ollama_model": "qwen2.5:0.5b"})
+        check(status == 200, "сохранение настроек")
+        _, data = request("GET", "/api/setup/status")
+        check(data["provider"] == "ollama" and data["ollama_model"] == "qwen2.5:0.5b" and not data["first_run"],
+              "настройки применены без перезапуска")
         print("\nВсе проверки пройдены")
     finally:
         proc.terminate()

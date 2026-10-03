@@ -1,40 +1,86 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../services/api'
+import { useAuthStore } from '../store/authStore'
 import './Login.css'
+import './Setup.css'
 
-// Первичная настройка установленной версии: ключ YandexGPT и Folder ID.
-// Доступна только на компьютере, где запущен сервер.
+const PROVIDERS = [
+  {
+    id: 'demo',
+    title: 'Демо-режим',
+    note: 'Бесплатно. Модель не подключена: на запросы приходят тестовые ответы. Подходит, чтобы проверить интерфейс и сценарии.',
+  },
+  {
+    id: 'ollama',
+    title: 'Локальная модель (Ollama)',
+    note: 'Бесплатно. Модель работает на этом компьютере. Нужно установить Ollama и скачать модель.',
+  },
+  {
+    id: 'yandexgpt',
+    title: 'YandexGPT',
+    note: 'Платно, по тарифам Yandex Cloud. Нужны Folder ID и API-ключ сервисного аккаунта.',
+  },
+]
+
+const errorText = (err, fallback) => err.response?.data?.detail || fallback
+
+// Выбор и проверка языковой модели. Менять можно только на компьютере с сервером.
 function Setup() {
+  const { isAuthenticated, user } = useAuthStore()
   const [status, setStatus] = useState(null)
-  const [folderId, setFolderId] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({ provider: 'demo', folder_id: '', api_key: '', ollama_url: '', ollama_model: '' })
+  const [message, setMessage] = useState(null) // {type: 'error'|'success'|'info', text}
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     api.get('/setup/status')
       .then(({ data }) => {
         setStatus(data)
-        setFolderId(data.folder_id || '')
+        setForm((f) => ({
+          ...f,
+          provider: data.provider,
+          folder_id: data.folder_id || '',
+          ollama_url: data.ollama_url || '',
+          ollama_model: data.ollama_model || '',
+        }))
       })
-      .catch(() => setStatus({ configured: false, editable: false }))
+      .catch(() => setStatus({ editable: false }))
   }, [])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+  const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
+
+  const payload = () => ({ ...form, api_key: form.api_key || null })
+
+  const testConnection = async () => {
+    setBusy(true)
+    setMessage({ type: 'info', text: 'Отправляю пробный запрос...' })
     try {
-      await api.post('/setup/', { folder_id: folderId, api_key: apiKey })
-      setSaved(true)
-      setApiKey('')
+      const { data } = await api.post('/setup/test', payload())
+      setMessage({ type: 'success', text: `Модель ответила: «${data.response.trim().slice(0, 200)}»` })
     } catch (err) {
-      setError(err.response?.data?.detail || 'Не удалось сохранить настройки')
+      setMessage({ type: 'error', text: errorText(err, 'Не удалось проверить подключение') })
     }
-    setLoading(false)
+    setBusy(false)
   }
+
+  const save = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      const { data } = await api.post('/setup/', payload())
+      setStatus((s) => ({ ...s, provider: data.provider, label: data.label, has_api_key: s.has_api_key || !!form.api_key }))
+      setForm((f) => ({ ...f, api_key: '' }))
+      setMessage({ type: 'success', text: `Сохранено. Сейчас используется: ${data.label}.` })
+    } catch (err) {
+      setMessage({ type: 'error', text: errorText(err, 'Не удалось сохранить настройки') })
+    }
+    setBusy(false)
+  }
+
+  const backLink = isAuthenticated
+    ? <Link to={user?.role === 'teacher' ? '/teacher' : '/student'}>← Вернуться в кабинет</Link>
+    : <Link to="/login">{status?.first_run ? 'Настроить позже и перейти ко входу →' : 'Ко входу →'}</Link>
 
   if (!status) {
     return <div className="login-container"><div className="login-card">Загрузка...</div></div>
@@ -42,60 +88,96 @@ function Setup() {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <h1>Настройка</h1>
-        <h2>Подключение к YandexGPT</h2>
+      <div className="login-card setup-card">
+        <h1>Настройки ИИ</h1>
+        <h2>Какую модель использовать в чатах</h2>
 
         {!status.editable ? (
           <p className="setup-hint">
-            Настройки можно изменить только на компьютере, где запущен сервер.
+            Сейчас используется: <b>{status.label}</b>.<br />
+            Изменить модель можно только на компьютере, где запущен сервер Classroom Lab.
           </p>
-        ) : saved ? (
-          <>
-            <div className="success-message">Настройки сохранены.</div>
-            <Link to="/login" className="submit-btn setup-link">Перейти ко входу</Link>
-          </>
         ) : (
-          <form onSubmit={handleSubmit}>
-            {status.configured && (
-              <p className="setup-hint">Ключ уже задан. Заполните форму, чтобы заменить его.</p>
+          <form onSubmit={save}>
+            <div className="provider-list">
+              {PROVIDERS.map((p) => (
+                <label key={p.id} className={`provider-option ${form.provider === p.id ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="provider"
+                    value={p.id}
+                    checked={form.provider === p.id}
+                    onChange={() => { setForm({ ...form, provider: p.id }); setMessage(null) }}
+                  />
+                  <span>
+                    <span className="provider-title">
+                      {p.title}
+                      {status.provider === p.id && <span className="provider-current">используется</span>}
+                    </span>
+                    <span className="provider-note">{p.note}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            {form.provider === 'ollama' && (
+              <div className="provider-fields">
+                <ol className="setup-steps">
+                  <li>Установите Ollama с сайта <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com</a>.</li>
+                  <li>В командной строке скачайте модель: <code>ollama pull {form.ollama_model || 'qwen2.5:3b'}</code></li>
+                  <li>Нажмите «Проверить подключение».</li>
+                </ol>
+                <div className="form-group">
+                  <label>Модель</label>
+                  <input type="text" value={form.ollama_model} onChange={set('ollama_model')} placeholder="qwen2.5:3b" />
+                </div>
+                <div className="form-group">
+                  <label>Адрес Ollama</label>
+                  <input type="text" value={form.ollama_url} onChange={set('ollama_url')} placeholder="http://127.0.0.1:11434" />
+                </div>
+              </div>
             )}
-            {error && <div className="error-message">{error}</div>}
-            <div className="form-group">
-              <label>Folder ID (каталог Yandex Cloud)</label>
-              <input
-                type="text"
-                value={folderId}
-                onChange={(e) => setFolderId(e.target.value)}
-                placeholder="b1g..."
-                required
-                disabled={loading}
-              />
+
+            {form.provider === 'yandexgpt' && (
+              <div className="provider-fields">
+                <div className="form-group">
+                  <label>Folder ID (каталог Yandex Cloud)</label>
+                  <input type="text" value={form.folder_id} onChange={set('folder_id')} placeholder="b1g..." required />
+                </div>
+                <div className="form-group">
+                  <label>API-ключ</label>
+                  <input
+                    type="password"
+                    value={form.api_key}
+                    onChange={set('api_key')}
+                    autoComplete="off"
+                    placeholder={status.has_api_key ? 'Сохранён. Оставьте пустым, чтобы не менять' : ''}
+                    required={!status.has_api_key}
+                  />
+                </div>
+                <p className="setup-hint">
+                  Сервисный аккаунт с ролью <code>ai.languageModels.user</code>, ключ с областью
+                  действия <code>yc.ai.languageModels.execute</code>. Каждый запрос тарифицируется.
+                </p>
+              </div>
+            )}
+
+            {message && <div className={`setup-message ${message.type}`}>{message.text}</div>}
+
+            <div className="setup-actions">
+              {form.provider !== 'demo' && (
+                <button type="button" className="secondary-btn" onClick={testConnection} disabled={busy}>
+                  Проверить подключение
+                </button>
+              )}
+              <button type="submit" className="submit-btn" disabled={busy}>
+                {busy ? 'Подождите...' : 'Сохранить'}
+              </button>
             </div>
-            <div className="form-group">
-              <label>API-ключ YandexGPT</label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                autoComplete="off"
-                required
-                disabled={loading}
-              />
-            </div>
-            <button type="submit" disabled={loading} className="submit-btn">
-              {loading ? 'Сохранение...' : 'Сохранить'}
-            </button>
-            <p className="setup-hint">
-              Ключ и Folder ID создаются в консоли Yandex Cloud: сервисный аккаунт с ролью
-              «ai.languageModels.user» → «Создать API-ключ».
-            </p>
           </form>
         )}
 
-        {status.configured && !saved && (
-          <p className="register-link"><Link to="/login">Ко входу</Link></p>
-        )}
+        <p className="register-link">{backLink}</p>
       </div>
     </div>
   )

@@ -19,6 +19,12 @@ function YandexGPTChat({ sessionId, readOnly = false }) {
     refetchInterval: 2000,
   })
 
+  const { data: llmStatus } = useQuery({
+    queryKey: ['llm-status'],
+    queryFn: async () => (await api.get('/setup/status')).data,
+    refetchInterval: 30000,
+  })
+
   const sendMutation = useMutation({
     mutationFn: async (prompt) => {
       const response = await api.post('/yandexgpt/send', {
@@ -48,6 +54,9 @@ function YandexGPTChat({ sessionId, readOnly = false }) {
     <div className="yandexgpt-chat">
       <div className="chat-header">
         <h3>КО YandexGPT (Уровень 1)</h3>
+        {llmStatus && (
+          <span className={`llm-badge ${llmStatus.provider === 'demo' ? 'demo' : ''}`}>{llmStatus.label}</span>
+        )}
       </div>
       <div className="chat-messages">
         {isLoading ? (
@@ -60,7 +69,7 @@ function YandexGPTChat({ sessionId, readOnly = false }) {
             >
               <div className="message-header">
                 <span className="message-author">
-                  {msg.is_from_yandexgpt ? 'YandexGPT' : msg.author_name}
+                  {msg.is_from_yandexgpt ? 'ИИ' : msg.author_name}
                 </span>
                 <span className="message-time">
                   {format(new Date(msg.created_at), 'HH:mm', { locale: ru })}
@@ -78,6 +87,11 @@ function YandexGPTChat({ sessionId, readOnly = false }) {
         )}
         <div ref={messagesEndRef} />
       </div>
+      {sendMutation.isError && (
+        <div className="chat-error">
+          {sendMutation.error?.response?.data?.detail || 'Не удалось отправить запрос'}
+        </div>
+      )}
       {!readOnly && (
         <form className="chat-input-form" onSubmit={handleSubmit}>
           <input
