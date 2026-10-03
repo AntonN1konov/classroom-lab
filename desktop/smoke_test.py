@@ -210,6 +210,7 @@ def main():
         status, t = request("POST", "/api/setup/tunnel/start")
         if status == 200 and t.get("url"):
             print(f"OK   туннель открыт: {t['url']}")
+            print(f"::notice title=Tunnel::opened {t['url']}")
             try:
                 for _ in range(20):
                     try:
@@ -225,10 +226,13 @@ def main():
                 raise
             except Exception as e:
                 print(f"WARN туннель недоступен снаружи: {e}")
+                print(f"::warning title=Tunnel::not reachable: {e}")
             request("POST", "/api/setup/tunnel/stop")
         else:
             print(f"WARN туннель не открылся (сеть CI?): {status} {t}")
+            print(f"::warning title=Tunnel::not opened: {status}")
         print("\nВсе проверки пройдены")
+        print("::notice title=Smoke test::all checks passed")
     finally:
         proc.terminate()
         try:
