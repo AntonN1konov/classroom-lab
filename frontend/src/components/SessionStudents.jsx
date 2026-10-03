@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../services/api'
 import './SessionManager.css'
 import './SessionStudents.css'
+import InviteDialog from './InviteDialog'
 
 function SessionStudents({ sessionId }) {
   const [showModal, setShowModal] = useState(false)
+  const [showInvite, setShowInvite] = useState(false)
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const queryClient = useQueryClient()
@@ -116,9 +118,14 @@ function SessionStudents({ sessionId }) {
 
       {error && !showModal && <div className="session-students-error">{error}</div>}
 
-      <button className="add-student-btn" onClick={openModal}>
-        + Добавить студента
+      <button className="add-student-btn" onClick={() => setShowInvite(true)}>
+        Пригласить по ссылке
       </button>
+      <button className="add-student-secondary" onClick={openModal}>
+        + Добавить зарегистрированного
+      </button>
+
+      {showInvite && <InviteDialog sessionId={sessionId} onClose={() => setShowInvite(false)} />}
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>

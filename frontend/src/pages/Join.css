@@ -1,0 +1,52 @@
+.join-card {
+  max-width: 440px;
+}
+
+.join-kicker {
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.login-card h1.join-title {
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.join-teacher {
+  color: #667eea;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.join-description {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.join-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1.5rem 0 1.25rem;
+  background: #f2f3f7;
+  padding: 0.25rem;
+  border-radius: 8px;
+}
+
+.join-tabs button {
+  flex: 1;
+  padding: 0.55rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #555;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.join-tabs button.active {
+  background: white;
+  color: #333;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}

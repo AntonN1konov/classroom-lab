@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import api from '../services/api'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import './Register.css'
@@ -13,6 +14,14 @@ function Register() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [canTeacher, setCanTeacher] = useState(false)
+
+  useEffect(() => {
+    // Преподавателя можно создать только на компьютере с сервером (или самого первого)
+    api.get('/auth/registration-options')
+      .then(({ data }) => setCanTeacher(data.can_register_teacher))
+      .catch(() => {})
+  }, [])
   
   const { register, login } = useAuthStore()
   const navigate = useNavigate()
@@ -93,18 +102,20 @@ function Register() {
               disabled={loading}
             />
           </div>
-          <div className="form-group">
-            <label>Роль</label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              disabled={loading}
-            >
-              <option value="student">Студент</option>
-              <option value="teacher">Преподаватель</option>
-            </select>
-          </div>
+          {canTeacher && (
+            <div className="form-group">
+              <label>Роль</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                disabled={loading}
+              >
+                <option value="student">Студент</option>
+                <option value="teacher">Преподаватель</option>
+              </select>
+            </div>
+          )}
           <button type="submit" disabled={loading} className="submit-btn">
             {loading ? 'Регистрация...' : 'Зарегистрироваться'}
           </button>

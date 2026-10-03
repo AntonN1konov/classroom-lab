@@ -28,7 +28,7 @@ function Layout({ children }) {
           <div className="layout-header-user">
             <span>{user?.full_name} ({user?.role === 'teacher' ? 'Преподаватель' : 'Студент'})</span>
             {user?.role === 'teacher' && (
-              <Link to="/setup" className="logout-btn settings-btn">Настройки ИИ</Link>
+              <Link to="/setup" className="logout-btn settings-btn">Настройки</Link>
             )}
             <button onClick={handleLogout} className="logout-btn">
               Выход

@@ -45,8 +45,8 @@ class FakeLMStudio(BaseHTTPRequestHandler):
         pass
 
 
-def request(method, path, data=None, token=None, form=False):
-    headers = {}
+def request(method, path, data=None, token=None, form=False, headers=None, base=None):
+    headers = dict(headers or {})
     body = None
     if data is not None:
         if form:
@@ -57,9 +57,9 @@ def request(method, path, data=None, token=None, form=False):
             headers["Content-Type"] = "application/json"
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    req = urllib.request.Request(BASE + path, data=body, headers=headers, method=method)
+    req = urllib.request.Request((base or BASE) + path, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=30) as r:
             raw = r.read()
             ctype = r.headers.get("Content-Type", "")
             return r.status, (json.loads(raw) if "json" in ctype else raw.decode("utf-8", "replace"))
@@ -165,6 +165,69 @@ def main():
         _, data = request("GET", "/api/setup/status")
         check(data["provider"] == "ollama" and data["ollama_model"] == "qwen2.5:0.5b" and not data["first_run"],
               "настройки применены без перезапуска")
+
+        # --- Запросы «из интернета» (через туннель/прокси) не считаются локальными ---
+        remote = {"X-Forwarded-For": "203.0.113.7"}
+        check(request("GET", "/api/auth/registration-options")[1]["can_register_teacher"] is True,
+              "на компьютере с сервером можно создать преподавателя")
+        check(request("GET", "/api/auth/registration-options", headers=remote)[1]["can_register_teacher"] is False,
+              "из интернета нельзя создать преподавателя")
+        status, _ = request("POST", "/api/auth/register", {"username": "hacker", "email": "h@example.com",
+                            "full_name": "H", "password": "secret123", "role": "teacher"}, headers=remote)
+        check(status == 403, "регистрация преподавателя из интернета запрещена")
+        check(request("POST", "/api/setup/", {"provider": "demo"}, headers=remote)[0] == 403,
+              "настройки из интернета менять нельзя")
+        check(request("POST", "/api/setup/tunnel/start", headers=remote)[0] == 403,
+              "туннель из интернета не включить")
+
+        # --- Приглашение по ссылке ---
+        status, inv = request("POST", f"/api/sessions/{sid}/invite", {}, token=teacher)
+        check(status == 200 and inv["token"], "ссылка-приглашение создана")
+        invite = inv["token"]
+        check(request("POST", f"/api/sessions/{sid}/invite", {}, token=teacher)[1]["token"] == invite,
+              "повторный запрос возвращает ту же ссылку")
+        status, info = request("GET", f"/api/invites/{invite}", headers=remote)
+        check(status == 200 and info["session_name"] == "Тестовая сессия", "страница приглашения доступна без входа")
+        status, friend = request("POST", "/api/auth/register", {"username": "friend", "email": "friend@example.com",
+                                 "full_name": "Друг", "password": "secret123"}, headers=remote)
+        check(status == 200 and friend["role"] == "student", "друг регистрируется студентом")
+        _, ft = request("POST", "/api/auth/login", {"username": "friend", "password": "secret123"}, form=True, headers=remote)
+        status, joined = request("POST", f"/api/invites/{invite}/join", {}, token=ft["access_token"], headers=remote)
+        check(status == 200 and joined["session_id"] == sid, "вступление в сессию по ссылке")
+        _, sessions = request("GET", "/api/sessions/", token=ft["access_token"])
+        check([x["id"] for x in sessions] == [sid], "сессия появилась у студента")
+        status, msgs = request("GET", f"/api/chats/messages/{sid}?chat_type=group", token=ft["access_token"])
+        check(status == 200, "студент читает групповой чат")
+        check(request("POST", f"/api/invites/{invite}/join", {}, token=teacher)[0] == 400,
+              "преподаватель не вступает по приглашению")
+        new_invite = request("POST", f"/api/sessions/{sid}/invite/reset", {}, token=teacher)[1]["token"]
+        check(new_invite != invite and request("GET", f"/api/invites/{invite}")[0] == 404,
+              "после сброса старая ссылка не работает")
+
+        # --- Доступ из интернета ---
+        _, addr = request("GET", "/api/setup/addresses")
+        check(addr["lan_url"] and addr["tunnel"]["available"], "адреса сервера и cloudflared в сборке")
+        status, t = request("POST", "/api/setup/tunnel/start")
+        if status == 200 and t.get("url"):
+            print(f"OK   туннель открыт: {t['url']}")
+            try:
+                for _ in range(20):
+                    try:
+                        if request("GET", "/api/health", base=t["url"])[0] == 200:
+                            break
+                    except Exception:
+                        time.sleep(2)
+                status, _ = request("POST", "/api/setup/", {"provider": "demo"}, base=t["url"])
+                check(status == 403, "через туннель настройки менять нельзя")
+                status, info = request("GET", f"/api/invites/{new_invite}", base=t["url"])
+                check(status == 200, "приглашение открывается через интернет")
+            except SystemExit:
+                raise
+            except Exception as e:
+                print(f"WARN туннель недоступен снаружи: {e}")
+            request("POST", "/api/setup/tunnel/stop")
+        else:
+            print(f"WARN туннель не открылся (сеть CI?): {status} {t}")
         print("\nВсе проверки пройдены")
     finally:
         proc.terminate()

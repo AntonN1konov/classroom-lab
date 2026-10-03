@@ -11,11 +11,10 @@ from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.services import llm
+from app.net import is_local_request
+from app.services import llm, tunnel
 
 router = APIRouter()
-
-LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
 class SettingsRequest(BaseModel):
@@ -33,7 +32,7 @@ def _config_file() -> Optional[str]:
 
 
 def _is_local(request: Request) -> bool:
-    return request.client is not None and request.client.host in LOCAL_HOSTS
+    return is_local_request(request)
 
 
 def _require_local(request: Request) -> None:
@@ -134,3 +133,39 @@ async def save_setup(data: SettingsRequest, request: Request):
     _save_env(_config_file(), values)
     os.environ.update(values)
     return {"provider": data.provider, "label": llm.provider_label(data.provider)}
+
+
+# --- Доступ из интернета и адреса для приглашений ---
+
+def _port() -> int:
+    return int(os.getenv("CLASSROOM_PORT") or os.getenv("PORT") or 8000)
+
+
+@router.get("/addresses")
+def server_addresses(request: Request):
+    """Адреса, по которым студенты могут открыть сервер (для ссылок-приглашений)."""
+    t = tunnel.status()
+    return {
+        "public_url": t["url"],
+        "lan_url": os.getenv("CLASSROOM_LAN_URL"),
+        "tunnel": {**t, "editable": _is_local(request)},
+    }
+
+
+@router.post("/tunnel/start")
+def tunnel_start(request: Request):
+    if not _is_local(request):
+        raise HTTPException(status_code=403, detail="Доступ из интернета включается на компьютере, где запущен сервер")
+    if not tunnel.binary():
+        raise HTTPException(status_code=404, detail="Компонент cloudflared не найден. Переустановите программу.")
+    result = tunnel.start(_port())
+    if not result["running"]:
+        raise HTTPException(status_code=502, detail=result["error"] or "Не удалось открыть доступ из интернета")
+    return result
+
+
+@router.post("/tunnel/stop")
+def tunnel_stop(request: Request):
+    if not _is_local(request):
+        raise HTTPException(status_code=403, detail="Доступ из интернета выключается на компьютере, где запущен сервер")
+    return tunnel.stop()

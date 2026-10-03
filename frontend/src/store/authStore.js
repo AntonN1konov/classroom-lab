@@ -1,6 +1,17 @@
 import { create } from 'zustand'
 import api from '../services/api'
 
+// Ошибки валидации FastAPI приходят списком: [{loc, msg}, ...]
+const formatError = (detail) => {
+  if (Array.isArray(detail)) {
+    return detail.map((d) => {
+      const field = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : ''
+      return field === 'email' ? 'Некорректный email' : d.msg
+    }).join('; ')
+  }
+  return detail
+}
+
 // Простая реализация persist без middleware
 const getStoredAuth = () => {
   try {
@@ -58,7 +69,7 @@ const useAuthStore = create(
         } catch (error) {
           return {
             success: false,
-            error: error.response?.data?.detail || 'Ошибка входа',
+            error: formatError(error.response?.data?.detail) || 'Ошибка входа',
           }
         }
       },
@@ -70,7 +81,7 @@ const useAuthStore = create(
         } catch (error) {
           return {
             success: false,
-            error: error.response?.data?.detail || 'Ошибка регистрации',
+            error: formatError(error.response?.data?.detail) || 'Ошибка регистрации',
           }
         }
       },

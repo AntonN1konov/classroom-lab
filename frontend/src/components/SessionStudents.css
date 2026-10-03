@@ -169,3 +169,18 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.add-student-secondary {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: none;
+  color: #667eea;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.add-student-secondary:hover {
+  text-decoration: underline;
+}

@@ -52,7 +52,7 @@ def _demo(prompt: str, context: Optional[List[Dict]]) -> Dict:
         "Демо-режим: языковая модель не подключена, поэтому это тестовый ответ.\n\n"
         f"Ваш запрос №{turns} в этой сессии: «{prompt}»\n\n"
         "Чтобы получать настоящие ответы, преподаватель может подключить "
-        "YandexGPT или бесплатную локальную модель в разделе «Настройки ИИ»."
+        "YandexGPT или бесплатную локальную модель в разделе «Настройки»."
     )
     return {"response": text, "tokens_used": 0}
 
@@ -123,7 +123,7 @@ def _yandexgpt(prompt: str, context: Optional[List[Dict]], folder_id: Optional[s
     folder_id = folder_id or os.getenv("YANDEX_CLOUD_FOLDER_ID")
     api_key = api_key or os.getenv("YANDEXGPT_API_KEY")
     if not folder_id or not api_key:
-        raise LLMError("YandexGPT не настроен: укажите Folder ID и API-ключ в разделе «Настройки ИИ».")
+        raise LLMError("YandexGPT не настроен: укажите Folder ID и API-ключ в разделе «Настройки».")
     messages = list(context or []) + [{"role": "user", "text": prompt}]
     payload = {
         "modelUri": f"gpt://{folder_id}/yandexgpt/latest",

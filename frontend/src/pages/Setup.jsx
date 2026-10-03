@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import InternetAccess from '../components/InternetAccess'
+import '../components/InviteDialog.css'
 import './Login.css'
 import './Setup.css'
 
@@ -37,6 +39,9 @@ function Setup() {
   const [form, setForm] = useState({ provider: 'demo', folder_id: '', api_key: '', ollama_url: '', ollama_model: '', openai_url: '', openai_model: '' })
   const [message, setMessage] = useState(null) // {type: 'error'|'success'|'info', text}
   const [busy, setBusy] = useState(false)
+  const [tunnel, setTunnel] = useState(null)
+
+  const loadTunnel = () => api.get('/setup/addresses').then(({ data }) => setTunnel(data.tunnel)).catch(() => {})
 
   useEffect(() => {
     api.get('/setup/status')
@@ -53,6 +58,7 @@ function Setup() {
         }))
       })
       .catch(() => setStatus({ editable: false }))
+    loadTunnel()
   }, [])
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
@@ -96,7 +102,7 @@ function Setup() {
   return (
     <div className="login-container">
       <div className="login-card setup-card">
-        <h1>Настройки ИИ</h1>
+        <h1>Настройки</h1>
         <h2>Какую модель использовать в чатах</h2>
 
         {!status.editable ? (
@@ -200,6 +206,13 @@ function Setup() {
               </button>
             </div>
           </form>
+        )}
+
+        {status.editable && tunnel && (
+          <div className="setup-section">
+            <h2>Доступ для студентов</h2>
+            <InternetAccess tunnel={tunnel} onChange={loadTunnel} />
+          </div>
         )}
 
         <p className="register-link">{backLink}</p>

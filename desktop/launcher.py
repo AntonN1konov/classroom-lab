@@ -71,6 +71,11 @@ def prepare_environment() -> None:
     os.environ["FRONTEND_DIST"] = os.path.join(root, "frontend_dist")
     os.environ["CLASSROOM_CONFIG_FILE"] = config_file
 
+    # cloudflared для доступа из интернета (кладётся в сборку в CI)
+    cloudflared = os.path.join(root, "bin", "cloudflared.exe" if sys.platform == "win32" else "cloudflared")
+    if os.path.isfile(cloudflared):
+        os.environ["CLOUDFLARED_PATH"] = cloudflared
+
     backend = os.path.join(root, "backend")
     if os.path.isdir(backend) and backend not in sys.path:
         sys.path.insert(0, backend)
@@ -124,11 +129,13 @@ def main() -> None:
 
     prepare_environment()
     port = free_port(int(os.getenv("PORT", DEFAULT_PORT)))
+    ip = local_ip()
+    os.environ["CLASSROOM_PORT"] = str(port)
+    os.environ["CLASSROOM_LAN_URL"] = f"http://{ip}:{port}"
 
     import uvicorn
     from app.main import app
 
-    ip = local_ip()
     print("=" * 60)
     print(f"  {APP_NAME} запущен")
     print()
@@ -136,6 +143,7 @@ def main() -> None:
     print(f"  Для студентов:       http://{ip}:{port}")
     print()
     print("  Студенты должны быть в той же сети (Wi-Fi / LAN).")
+    print("  Для доступа из интернета: кнопка «Настройки» в кабинете преподавателя.")
     print(f"  Данные хранятся в:   {data_dir()}")
     print()
     print("  Чтобы остановить сервер, закройте это окно.")

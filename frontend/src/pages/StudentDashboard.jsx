@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
@@ -9,7 +10,9 @@ import StudentContextWindow from '../components/StudentContextWindow'
 import './StudentDashboard.css'
 
 function StudentDashboard() {
-  const [selectedSession, setSelectedSession] = useState(null)
+  const location = useLocation()
+  // После перехода по приглашению открываем сессию, в которую вступили
+  const [selectedSession, setSelectedSession] = useState(location.state?.sessionId || null)
   const { user } = useAuthStore()
 
   const { data: sessions, isLoading } = useQuery({
@@ -33,7 +36,7 @@ function StudentDashboard() {
   if (!sessions || sessions.length === 0) {
     return (
       <div className="no-sessions">
-        <p>У вас нет доступных сессий. Обратитесь к преподавателю.</p>
+        <p>У вас пока нет сессий. Попросите у преподавателя ссылку-приглашение.</p>
       </div>
     )
   }

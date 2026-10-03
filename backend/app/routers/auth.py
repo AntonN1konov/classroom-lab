@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from app.database import get_db
 from app.models import User, UserRole
+from app.net import is_local_request
 from app.schemas import UserCreate, UserResponse, Token
 from app.auth import (
     get_password_hash,
@@ -18,11 +19,33 @@ from app.auth import (
 
 router = APIRouter()
 
+def can_register_teacher(request: Request, db: Session) -> bool:
+    """
+    Преподавателя можно зарегистрировать, только если преподавателей ещё нет
+    (первый запуск) или регистрация идёт с компьютера, где запущен сервер.
+    Иначе любой, кто получил ссылку, мог бы стать преподавателем и тратить
+    платные запросы к модели.
+    """
+    if is_local_request(request):
+        return True
+    return db.query(User).filter(User.role == UserRole.TEACHER).first() is None
+
+
+@router.get("/registration-options")
+async def registration_options(request: Request, db: Session = Depends(get_db)):
+    return {"can_register_teacher": can_register_teacher(request, db)}
+
+
 @router.post("/register", response_model=UserResponse)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(user_data: UserCreate, request: Request, db: Session = Depends(get_db)):
     """
     Регистрация нового пользователя
     """
+    if user_data.role == UserRole.TEACHER and not can_register_teacher(request, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Аккаунт преподавателя можно создать только на компьютере, где запущен сервер",
+        )
     # Проверка существования пользователя
     if get_user_by_username(db, user_data.username):
         raise HTTPException(

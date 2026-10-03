@@ -18,9 +18,17 @@ for dirpath, _, files in os.walk(os.path.join(BACKEND, "app")):
 
 hiddenimports = app_modules + collect_submodules("uvicorn") + ["email_validator", "multipart"]
 
+# cloudflared (доступ из интернета) скачивается в desktop/bin в CI
+cloudflared = [
+    (os.path.join(ROOT, "desktop", "bin", name), "bin")
+    for name in ("cloudflared.exe", "cloudflared")
+    if os.path.exists(os.path.join(ROOT, "desktop", "bin", name))
+]
+
 a = Analysis(
     [os.path.join(ROOT, "desktop", "launcher.py")],
     pathex=[BACKEND],
+    binaries=cloudflared,
     datas=[
         (os.path.join(ROOT, "frontend", "dist"), "frontend_dist"),
         (os.path.join(BACKEND, "app", "assets"), os.path.join("app", "assets")),

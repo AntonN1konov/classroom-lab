@@ -108,3 +108,17 @@ class TokenUsage(Base):
     
     session = relationship("Session")
 
+
+
+class SessionInvite(Base):
+    """Ссылка-приглашение в сессию: студент переходит по ней и попадает в сессию."""
+    __tablename__ = "session_invites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False, index=True)
+    token = Column(String, unique=True, index=True, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    session = relationship("Session")

@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 from app.database import engine, Base
-from app.routers import auth, users, sessions, chats, yandexgpt, export, setup
+from app.routers import auth, users, sessions, chats, yandexgpt, export, setup, invites
 
 load_dotenv()
 
@@ -37,11 +37,10 @@ app.include_router(chats.router, prefix="/api/chats", tags=["chats"])
 app.include_router(yandexgpt.router, prefix="/api/yandexgpt", tags=["yandexgpt"])
 app.include_router(export.router, prefix="/api/export", tags=["export"])
 app.include_router(setup.router, prefix="/api/setup", tags=["setup"])
+app.include_router(invites.router, prefix="/api", tags=["invites"])
 
-# Статические файлы для экспортированных документов
-exports_dir = os.getenv("EXPORTS_DIR", "exports")
-os.makedirs(exports_dir, exist_ok=True)
-app.mount("/exports", StaticFiles(directory=exports_dir), name="exports")
+# Экспортированные документы отдаются только через /api/export (с проверкой доступа),
+# поэтому папка exports не публикуется как статика.
 
 
 @app.get("/api/health")
@@ -57,7 +56,7 @@ if frontend_dist and os.path.isdir(frontend_dist):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa(full_path: str):
-        if full_path.startswith(("api/", "exports/")):
+        if full_path.startswith("api/"):
             raise HTTPException(status_code=404)
         candidate = os.path.normpath(os.path.join(frontend_dist, full_path))
         if full_path and candidate.startswith(os.path.normpath(frontend_dist)) and os.path.isfile(candidate):
