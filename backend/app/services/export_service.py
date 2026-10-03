@@ -8,10 +8,38 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from xml.sax.saxutils import escape
+
+FONTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "fonts")
+
+
+def _register_fonts() -> tuple:
+    """Шрифт с кириллицей для PDF (стандартный Helvetica её не содержит)."""
+    regular = os.path.join(FONTS_DIR, "DejaVuSans.ttf")
+    bold = os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf")
+    if os.path.exists(regular) and os.path.exists(bold):
+        pdfmetrics.registerFont(TTFont("DejaVuSans", regular))
+        pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", bold))
+        pdfmetrics.registerFontFamily(
+            "DejaVuSans", normal="DejaVuSans", bold="DejaVuSans-Bold",
+            italic="DejaVuSans", boldItalic="DejaVuSans-Bold",
+        )
+        return "DejaVuSans", "DejaVuSans-Bold"
+    return "Helvetica", "Helvetica-Bold"
+
+
+FONT, FONT_BOLD = _register_fonts()
+
+
+def _para(text: str) -> str:
+    """Экранирование текста для Paragraph и сохранение переносов строк."""
+    return escape(text or "").replace("\n", "<br/>")
 
 class ExportService:
     def __init__(self):
-        self.exports_dir = "exports"
+        self.exports_dir = os.getenv("EXPORTS_DIR", "exports")
         os.makedirs(self.exports_dir, exist_ok=True)
     
     def export_session(
@@ -51,6 +79,8 @@ class ExportService:
         doc = SimpleDocTemplate(filepath, pagesize=A4)
         story = []
         styles = getSampleStyleSheet()
+        for style_name in ("Normal", "Italic", "Heading1", "Heading2", "Heading3"):
+            styles[style_name].fontName = FONT_BOLD if style_name.startswith("Heading") else FONT
         
         # Заголовок
         title_style = ParagraphStyle(
@@ -61,7 +91,7 @@ class ExportService:
             spaceAfter=30,
             alignment=TA_LEFT
         )
-        story.append(Paragraph(f"Сессия: {session_name}", title_style))
+        story.append(Paragraph(f"Сессия: {_para(session_name)}", title_style))
         story.append(Paragraph(f"Дата экспорта: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
         story.append(Spacer(1, 0.3*inch))
         
@@ -70,13 +100,13 @@ class ExportService:
             # Промт
             if msg.get("prompt"):
                 story.append(Paragraph(f"<b>Вопрос {i}:</b>", styles['Heading2']))
-                story.append(Paragraph(msg["prompt"], styles['Normal']))
+                story.append(Paragraph(_para(msg["prompt"]), styles['Normal']))
                 story.append(Spacer(1, 0.1*inch))
             
             # Ответ
             if msg.get("response"):
                 story.append(Paragraph(f"<b>Ответ YandexGPT:</b>", styles['Heading3']))
-                story.append(Paragraph(msg["response"], styles['Normal']))
+                story.append(Paragraph(_para(msg["response"]), styles['Normal']))
                 story.append(Spacer(1, 0.2*inch))
             
             if include_context and msg.get("timestamp"):

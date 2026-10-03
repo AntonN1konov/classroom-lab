@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
+import api from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import './Login.css'
 
@@ -8,6 +9,7 @@ function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [setup, setSetup] = useState(null)
   
   const { login, isAuthenticated, user } = useAuthStore()
   const navigate = useNavigate()
@@ -17,6 +19,11 @@ function Login() {
       navigate(user?.role === 'teacher' ? '/teacher' : '/student', { replace: true })
     }
   }, [isAuthenticated, user, navigate])
+
+  useEffect(() => {
+    // В установленной версии напоминаем настроить YandexGPT
+    api.get('/setup/status').then(({ data }) => setSetup(data)).catch(() => {})
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -39,6 +46,14 @@ function Login() {
       <div className="login-card">
         <h1>YandexGPT Office Laboratory</h1>
         <h2>Вход в систему</h2>
+        {setup && !setup.configured && (
+          <div className="setup-banner">
+            YandexGPT ещё не подключён.{' '}
+            {setup.editable
+              ? <Link to="/setup">Настроить</Link>
+              : 'Попросите преподавателя завершить настройку.'}
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           {error && <div className="error-message">{error}</div>}
           <div className="form-group">

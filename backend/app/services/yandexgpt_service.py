@@ -8,9 +8,17 @@ load_dotenv()
 
 class YandexGPTService:
     def __init__(self):
-        self.folder_id = os.getenv("YANDEX_CLOUD_FOLDER_ID")
-        self.api_key = os.getenv("YANDEXGPT_API_KEY")
         self.api_url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+
+    # Настройки читаются при каждом обращении, чтобы их можно было
+    # задать после запуска (страница первичной настройки).
+    @property
+    def folder_id(self) -> Optional[str]:
+        return os.getenv("YANDEX_CLOUD_FOLDER_ID")
+
+    @property
+    def api_key(self) -> Optional[str]:
+        return os.getenv("YANDEXGPT_API_KEY")
         
     def _get_headers(self) -> Dict[str, str]:
         return {
