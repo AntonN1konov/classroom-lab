@@ -6,6 +6,7 @@ import YandexGPTChat from '../components/YandexGPTChat'
 import GroupChat from '../components/GroupChat'
 import StudentContextWindows from '../components/StudentContextWindows'
 import SessionManager from '../components/SessionManager'
+import SessionStudents from '../components/SessionStudents'
 import './TeacherDashboard.css'
 
 function TeacherDashboard() {
@@ -44,6 +45,7 @@ function TeacherDashboard() {
             selectedSession={selectedSession}
             onSelectSession={setSelectedSession}
           />
+          {selectedSession && <SessionStudents sessionId={selectedSession} />}
         </div>
 
         {selectedSession && (

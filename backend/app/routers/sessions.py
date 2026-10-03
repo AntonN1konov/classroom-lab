@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.database import get_db
-from app.models import Session, User, StudentSession
+from app.models import Session, User, StudentSession, UserRole
 from app.schemas import SessionCreate, SessionResponse, SessionWithStudents
 from app.auth import get_current_active_user, get_current_teacher
 
@@ -103,6 +103,9 @@ async def add_student_to_session(
     student = db.query(User).filter(User.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Студент не найден")
+
+    if student.role != UserRole.STUDENT:
+        raise HTTPException(status_code=400, detail="Пользователь не является студентом")
     
     # Проверка, не добавлен ли уже студент
     existing = db.query(StudentSession).filter(
