@@ -17,6 +17,11 @@ const PROVIDERS = [
     note: 'Бесплатно. Модель работает на этом компьютере. Нужно установить Ollama и скачать модель.',
   },
   {
+    id: 'openai',
+    title: 'Локальная модель (LM Studio)',
+    note: 'Бесплатно. Модель работает на этом компьютере в LM Studio. Подходит и любой сервер с API в формате OpenAI.',
+  },
+  {
     id: 'yandexgpt',
     title: 'YandexGPT',
     note: 'Платно, по тарифам Yandex Cloud. Нужны Folder ID и API-ключ сервисного аккаунта.',
@@ -29,7 +34,7 @@ const errorText = (err, fallback) => err.response?.data?.detail || fallback
 function Setup() {
   const { isAuthenticated, user } = useAuthStore()
   const [status, setStatus] = useState(null)
-  const [form, setForm] = useState({ provider: 'demo', folder_id: '', api_key: '', ollama_url: '', ollama_model: '' })
+  const [form, setForm] = useState({ provider: 'demo', folder_id: '', api_key: '', ollama_url: '', ollama_model: '', openai_url: '', openai_model: '' })
   const [message, setMessage] = useState(null) // {type: 'error'|'success'|'info', text}
   const [busy, setBusy] = useState(false)
 
@@ -43,6 +48,8 @@ function Setup() {
           folder_id: data.folder_id || '',
           ollama_url: data.ollama_url || '',
           ollama_model: data.ollama_model || '',
+          openai_url: data.openai_url || '',
+          openai_model: data.openai_model || '',
         }))
       })
       .catch(() => setStatus({ editable: false }))
@@ -134,6 +141,24 @@ function Setup() {
                 <div className="form-group">
                   <label>Адрес Ollama</label>
                   <input type="text" value={form.ollama_url} onChange={set('ollama_url')} placeholder="http://127.0.0.1:11434" />
+                </div>
+              </div>
+            )}
+
+            {form.provider === 'openai' && (
+              <div className="provider-fields">
+                <ol className="setup-steps">
+                  <li>Установите <a href="https://lmstudio.ai" target="_blank" rel="noreferrer">LM Studio</a> и скачайте модель, например Qwen2.5 3B Instruct.</li>
+                  <li>На вкладке <b>Developer</b> загрузите модель и включите сервер (Status: Running).</li>
+                  <li>Нажмите «Проверить подключение».</li>
+                </ol>
+                <div className="form-group">
+                  <label>Модель</label>
+                  <input type="text" value={form.openai_model} onChange={set('openai_model')} placeholder="Пусто — загруженная в LM Studio" />
+                </div>
+                <div className="form-group">
+                  <label>Адрес сервера</label>
+                  <input type="text" value={form.openai_url} onChange={set('openai_url')} placeholder="http://127.0.0.1:1234/v1" />
                 </div>
               </div>
             )}

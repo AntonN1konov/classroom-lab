@@ -6,6 +6,8 @@
 """
 import json
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import subprocess
 import sys
 import tempfile
@@ -15,6 +17,32 @@ import urllib.request
 
 PORT = 8765
 BASE = f"http://127.0.0.1:{PORT}"
+FAKE_LLM_PORT = 8766
+
+
+class FakeLMStudio(BaseHTTPRequestHandler):
+    """Имитация LM Studio: /v1/models и /v1/chat/completions."""
+
+    def _send(self, data):
+        body = json.dumps(data).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        self._send({"data": [{"id": "qwen2.5-3b-instruct"}]})
+
+    def do_POST(self):
+        req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        last = req["messages"][-1]["content"]
+        self._send({"choices": [{"message": {"role": "assistant",
+                    "content": f"[{req['model']}] сообщений: {len(req['messages'])}; последнее: {last}"}}],
+                    "usage": {"total_tokens": 42}})
+
+    def log_message(self, *args):
+        pass
 
 
 def request(method, path, data=None, token=None, form=False):
@@ -116,6 +144,21 @@ def main():
         check(status == 502 and "Ollama" in err, "понятная ошибка, если Ollama не запущена")
         status, _ = request("POST", "/api/setup/", {"provider": "yandexgpt", "folder_id": "f"})
         check(status == 400, "YandexGPT без ключа не сохраняется")
+
+        # LM Studio (OpenAI-совместимый сервер): проверка, сохранение, ответ в чате с контекстом
+        fake = HTTPServer(("127.0.0.1", FAKE_LLM_PORT), FakeLMStudio)
+        threading.Thread(target=fake.serve_forever, daemon=True).start()
+        lm = {"provider": "openai", "openai_url": f"http://127.0.0.1:{FAKE_LLM_PORT}/v1"}
+        status, data = request("POST", "/api/setup/test", lm)
+        check(status == 200 and "qwen2.5-3b-instruct" in data["response"], "проверка подключения к LM Studio")
+        check(request("POST", "/api/setup/", lm)[0] == 200, "сохранение LM Studio")
+        status, answer = request("POST", "/api/yandexgpt/send", {"prompt": "Третий вопрос", "session_id": sid}, token=teacher)
+        check(status == 200 and "сообщений: 5" in answer["response"] and answer["tokens_used"] == 42,
+              "ответ локальной модели с историей сессии")
+        fake.shutdown()
+        fake.server_close()
+        status, err = request("POST", "/api/yandexgpt/send", {"prompt": "x", "session_id": sid}, token=teacher)
+        check(status == 502 and "LM Studio" in err, "понятная ошибка, если сервер LM Studio выключен")
 
         status, saved = request("POST", "/api/setup/", {"provider": "ollama", "ollama_model": "qwen2.5:0.5b"})
         check(status == 200, "сохранение настроек")

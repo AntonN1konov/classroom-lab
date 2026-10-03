@@ -19,11 +19,13 @@ LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
 class SettingsRequest(BaseModel):
-    provider: Literal["demo", "ollama", "yandexgpt"]
+    provider: Literal["demo", "ollama", "openai", "yandexgpt"]
     folder_id: Optional[str] = None
     api_key: Optional[str] = None  # пусто — оставить сохранённый ключ
     ollama_url: Optional[str] = None
     ollama_model: Optional[str] = None
+    openai_url: Optional[str] = None
+    openai_model: Optional[str] = None  # пусто — первая загруженная модель
 
 
 def _config_file() -> Optional[str]:
@@ -73,6 +75,11 @@ def _resolve(data: SettingsRequest) -> dict:
             OLLAMA_URL=(data.ollama_url or llm.DEFAULT_OLLAMA_URL).strip().rstrip("/"),
             OLLAMA_MODEL=(data.ollama_model or llm.DEFAULT_OLLAMA_MODEL).strip(),
         )
+    elif data.provider == "openai":
+        values.update(
+            OPENAI_URL=(data.openai_url or llm.DEFAULT_OPENAI_URL).strip().rstrip("/"),
+            OPENAI_MODEL=(data.openai_model or "").strip(),
+        )
     return values
 
 
@@ -93,6 +100,8 @@ async def setup_status(request: Request):
             has_api_key=bool(os.getenv("YANDEXGPT_API_KEY")),
             ollama_url=os.getenv("OLLAMA_URL") or llm.DEFAULT_OLLAMA_URL,
             ollama_model=os.getenv("OLLAMA_MODEL") or llm.DEFAULT_OLLAMA_MODEL,
+            openai_url=os.getenv("OPENAI_URL") or llm.DEFAULT_OPENAI_URL,
+            openai_model=os.getenv("OPENAI_MODEL") or "",
         )
     return status
 
@@ -110,6 +119,8 @@ def test_connection(data: SettingsRequest, request: Request):
             api_key=values.get("YANDEXGPT_API_KEY"),
             ollama_url=values.get("OLLAMA_URL"),
             ollama_model=values.get("OLLAMA_MODEL"),
+            openai_url=values.get("OPENAI_URL"),
+            openai_model=values.get("OPENAI_MODEL"),
         )
     except llm.LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
