@@ -219,6 +219,10 @@ YandexGPT-office-laboratory/
 - [ ] Политика обработки персональных данных
 - [ ] Установочный пакет для Linux (.deb / AppImage)
 
+## Сторонние материалы
+
+Используемые библиотеки, шрифты и компоненты установщика с их лицензиями перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Авторы
 
 Учебный проект. Исходная версия — [Diyaryulchub/YandexGPT-office-laboratory](https://github.com/Diyaryulchub/YandexGPT-office-laboratory).
